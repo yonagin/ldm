@@ -18,11 +18,11 @@ class DiagonalGaussianDistribution:
         return self.mean
 
     def kl(self) -> torch.Tensor:
-        return 0.5 * torch.sum(torch.exp(self.logvar) + self.mean ** 2 - 1.0 - self.logvar, dim=1)
+        return 0.5 * torch.sum(torch.exp(self.logvar) + self.mean ** 2 - 1.0 - self.logvar, dim=[1, 2, 3])
 
 
 class VAE(nn.Module):
-    def __init__(self, in_channels: int = 1, latent_dim: int = 8, kl_weight: float = 1e-4):
+    def __init__(self, in_channels: int = 1, latent_dim: int = 8, kl_weight: float = 1e-6):
         super().__init__()
         self.encoder = Encoder(in_channels, latent_dim)
         self.to_moments = nn.Conv2d(latent_dim, latent_dim * 2, kernel_size=1)
