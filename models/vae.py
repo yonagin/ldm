@@ -2,8 +2,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
-from modules.encoder import Encoder
-from modules.decoder import Decoder
+from modules.cnn_models import Encoder, Decoder
 
 
 class DiagonalGaussianDistribution:
@@ -23,13 +22,11 @@ class DiagonalGaussianDistribution:
 
 
 class VAE(nn.Module):
-    """Light VAE tokenizer for MNIST."""
-
-    def __init__(self, in_channels: int = 1, latent_dim: int = 8, base_channels: int = 32, kl_weight: float = 1e-4):
+    def __init__(self, in_channels: int = 1, latent_dim: int = 8, kl_weight: float = 1e-4):
         super().__init__()
-        self.encoder = Encoder(in_channels=in_channels, latent_dim=base_channels, base_channels=base_channels)
-        self.to_moments = nn.Conv2d(base_channels, latent_dim * 2, kernel_size=1)
-        self.decoder = Decoder(out_channels=in_channels, latent_dim=latent_dim, base_channels=base_channels)
+        self.encoder = Encoder(in_channels, latent_dim)
+        self.to_moments = nn.Conv2d(latent_dim, latent_dim * 2, kernel_size=1)
+        self.decoder = Decoder(in_channels, latent_dim)
         self.kl_weight = kl_weight
 
     def encode(self, x: torch.Tensor) -> DiagonalGaussianDistribution:

@@ -3,8 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Literal
 
-from modules.encoder import Encoder
-from modules.decoder import Decoder
+from modules.cnn_models import Encoder, Decoder
+
 
 
 # ============================================================================

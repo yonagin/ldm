@@ -1,4 +1,4 @@
-import argparse
+﻿import argparse
 import os
 from dataclasses import dataclass
 
@@ -37,7 +37,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--tokenizer", type=str, default="vae", choices=["vae", "rankae"])
     parser.add_argument("--dataset", type=str, default="mnist", choices=supported_datasets())
-    parser.add_argument("--img-size", type=int, default=28)
+    parser.add_argument("--imgsize", type=int, default=32)
     parser.add_argument("--data-root", type=str, default="./data")
     parser.add_argument("--save-dir", type=str, default="./checkpoints/stage1")
     parser.add_argument("--epochs", type=int, default=10)
