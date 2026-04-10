@@ -85,7 +85,7 @@ def main():
                 z = model.encode(fixed).mode()
                 rec = model.decode(z)
             else:
-                z = model.encode(fixed, return_hard=True)
+                z = model.encode(fixed)
                 rec = model.decode(z)
 
             rec_vis = (rec.clamp(-1, 1) + 1.0) / 2.0
