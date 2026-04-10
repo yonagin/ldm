@@ -44,6 +44,7 @@ def main():
     parser.add_argument("--ldm-ckpt", type=str, required=True)
     parser.add_argument("--out", type=str, default="./samples/generated.png")
     parser.add_argument("--n", type=int, default=64)
+    parser.add_argument("--img_size", type=int, default=28)
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
 
@@ -56,7 +57,7 @@ def main():
     timesteps = ldm_ckpt.get("timesteps", 200)
     latent_size = ldm_ckpt.get("latent_size")
     if latent_size is None:
-        latent_size = infer_latent_size_from_dummy(tokenizer, tokenizer_type, device, args.input_size)
+        latent_size = infer_latent_size_from_dummy(tokenizer, tokenizer_type, device, args.img_size)
 
     unet = SimpleUNet(in_channels=latent_dim, out_channels=latent_dim)
     ddpm = DDPM(
