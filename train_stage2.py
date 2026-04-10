@@ -34,7 +34,7 @@ def load_tokenizer(path: str, device: str):
 def encode_with_tokenizer(tokenizer, tokenizer_type: str, x: torch.Tensor):
     if tokenizer_type == "vae":
         return tokenizer.encode(x).mode()
-    return tokenizer.encode(x, return_hard=True)
+    return tokenizer.encode(x)
 
 
 def main():
