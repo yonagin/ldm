@@ -12,8 +12,9 @@ class VectorQuantizer(nn.Module):
         self.beta = beta
 
         self.embedding = nn.Embedding(n_e, e_dim)
-        self._scale=scale
         self._norm = norm
+        self._scale=scale
+
         if scale:
             nn.init.normal_(self.embedding.weight, mean=0, std=1)
             self.scale = nn.Parameter(torch.ones(e_dim) * self.e_dim ** -0.5)
@@ -21,7 +22,7 @@ class VectorQuantizer(nn.Module):
             nn.init.normal_(self.embedding.weight, mean=0, std=self.e_dim**-0.5)
 
 
-    def norm(weight):
+    def norm(self, weight):
         std = weight.std(dim=0, keepdim=True).detach()
         std = torch.clamp(std, min=1e-8)
         return weight / std
