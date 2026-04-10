@@ -26,6 +26,17 @@ def load_tokenizer(path: str, device: str):
     tok.to(device).eval()
     return tok, tokenizer_type, latent_dim
 
+@torch.no_grad()
+def infer_latent_size_from_dummy(tokenizer, tokenizer_type: str, device: str, input_size: int) -> int:
+    x = torch.zeros(1, 1, input_size, input_size, device=device)
+    if tokenizer_type == "vae":
+        z = tokenizer.encode(x).mode()
+    else:
+        z = tokenizer.encode(x)
+    if z.ndim != 4 or z.shape[-1] != z.shape[-2]:
+        raise ValueError(f"Expected square latent map (B,C,H,W), got shape={tuple(z.shape)}")
+    return int(z.shape[-1])
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -33,6 +44,7 @@ def main():
     parser.add_argument("--ldm-ckpt", type=str, required=True)
     parser.add_argument("--out", type=str, default="./samples/generated.png")
     parser.add_argument("--n", type=int, default=64)
+    parser.add_argument("--input-size", type=int, default=28, help="Only used if ldm checkpoint has no latent_size.")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
 
@@ -43,12 +55,15 @@ def main():
 
     ldm_ckpt = torch.load(args.ldm_ckpt, map_location=device)
     timesteps = ldm_ckpt.get("timesteps", 200)
+    latent_size = ldm_ckpt.get("latent_size")
+    if latent_size is None:
+        latent_size = infer_latent_size_from_dummy(tokenizer, tokenizer_type, device, args.input_size)
 
     unet = SimpleUNet(in_channels=latent_dim, out_channels=latent_dim)
     ddpm = DDPM(
         unet=unet,
         timesteps=timesteps,
-        image_size=7,
+        image_size=latent_size,
         channels=latent_dim,
         parameterization="eps",
         loss_type="l2",

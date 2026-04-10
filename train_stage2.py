@@ -36,6 +36,15 @@ def encode_with_tokenizer(tokenizer, tokenizer_type: str, x: torch.Tensor):
         return tokenizer.encode(x).mode()
     return tokenizer.encode(x)
 
+@torch.no_grad()
+def infer_latent_size(tokenizer, tokenizer_type: str, dataloader, device: str) -> int:
+    x, _ = next(iter(dataloader))
+    x = x.to(device)
+    z = encode_with_tokenizer(tokenizer, tokenizer_type, x)
+    if z.ndim != 4 or z.shape[-1] != z.shape[-2]:
+        raise ValueError(f"Expected square latent map (B,C,H,W), got shape={tuple(z.shape)}")
+    return int(z.shape[-1])
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -60,12 +69,13 @@ def main():
     ])
     ds = datasets.MNIST(root=args.data_root, train=True, download=True, transform=tfm)
     dl = DataLoader(ds, batch_size=args.batch_size, shuffle=True, num_workers=2, pin_memory=True)
+    latent_size = infer_latent_size(tokenizer, tokenizer_type, dl, device)
 
     unet = SimpleUNet(in_channels=latent_dim, out_channels=latent_dim)
     ddpm = DDPM(
         unet=unet,
         timesteps=args.timesteps,
-        image_size=7,
+        image_size=latent_size,
         channels=latent_dim,
         parameterization="eps",
         loss_type="l2",
@@ -96,6 +106,7 @@ def main():
                 "model": ddpm.state_dict(),
                 "tokenizer_type": tokenizer_type,
                 "latent_dim": latent_dim,
+                "latent_size": latent_size,
                 "timesteps": args.timesteps,
                 "epoch": epoch,
             },
@@ -107,6 +118,7 @@ def main():
             "model": ddpm.state_dict(),
             "tokenizer_type": tokenizer_type,
             "latent_dim": latent_dim,
+            "latent_size": latent_size,
             "timesteps": args.timesteps,
             "epoch": args.epochs,
         },
