@@ -5,7 +5,7 @@ import torch
 from torchvision.utils import save_image, make_grid
 
 from models.diffusion import DDPM
-from models.vae import SimpleVAE
+from models.vae import VAE
 from models.rankae import RankAE
 from modules.unet import SimpleUNet
 
@@ -16,7 +16,7 @@ def load_tokenizer(path: str, device: str):
     latent_dim = ckpt["latent_dim"]
 
     if tokenizer_type == "vae":
-        tok = SimpleVAE(in_channels=1, latent_dim=latent_dim)
+        tok = VAE(in_channels=1, latent_dim=latent_dim)
     elif tokenizer_type == "rankae":
         tok = RankAE(in_channels=1, latent_dim=latent_dim)
     else:
