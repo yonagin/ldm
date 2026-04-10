@@ -1,0 +1,118 @@
+﻿import argparse
+import os
+
+import torch
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
+
+from models.diffusion import DDPM
+from models.vae import SimpleVAE
+from models.rankae import RankAE
+from modules.unet import SimpleUNet
+
+
+def load_tokenizer(path: str, device: str):
+    ckpt = torch.load(path, map_location=device)
+    tokenizer_type = ckpt["tokenizer"]
+    latent_dim = ckpt["latent_dim"]
+
+    if tokenizer_type == "vae":
+        tok = SimpleVAE(in_channels=1, latent_dim=latent_dim)
+    elif tokenizer_type == "rankae":
+        tok = RankAE(in_channels=1, latent_dim=latent_dim)
+    else:
+        raise ValueError(f"Unsupported tokenizer in checkpoint: {tokenizer_type}")
+
+    tok.load_state_dict(ckpt["model"])
+    tok.to(device).eval()
+    for p in tok.parameters():
+        p.requires_grad_(False)
+
+    return tok, tokenizer_type, latent_dim
+
+
+def encode_with_tokenizer(tokenizer, tokenizer_type: str, x: torch.Tensor):
+    if tokenizer_type == "vae":
+        return tokenizer.encode(x).mode()
+    return tokenizer.encode(x, return_hard=True)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--tokenizer-ckpt", type=str, required=True)
+    parser.add_argument("--data-root", type=str, default="./data")
+    parser.add_argument("--save-dir", type=str, default="./checkpoints/stage2")
+    parser.add_argument("--epochs", type=int, default=20)
+    parser.add_argument("--batch-size", type=int, default=128)
+    parser.add_argument("--lr", type=float, default=2e-4)
+    parser.add_argument("--timesteps", type=int, default=200)
+    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
+    args = parser.parse_args()
+
+    os.makedirs(args.save_dir, exist_ok=True)
+    device = args.device
+
+    tokenizer, tokenizer_type, latent_dim = load_tokenizer(args.tokenizer_ckpt, device)
+
+    tfm = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.5,), (0.5,)),
+    ])
+    ds = datasets.MNIST(root=args.data_root, train=True, download=True, transform=tfm)
+    dl = DataLoader(ds, batch_size=args.batch_size, shuffle=True, num_workers=2, pin_memory=True)
+
+    unet = SimpleUNet(in_channels=latent_dim, out_channels=latent_dim)
+    ddpm = DDPM(
+        unet=unet,
+        timesteps=args.timesteps,
+        image_size=7,
+        channels=latent_dim,
+        parameterization="eps",
+        loss_type="l2",
+    ).to(device)
+
+    optim = torch.optim.AdamW(ddpm.parameters(), lr=args.lr)
+
+    for epoch in range(1, args.epochs + 1):
+        ddpm.train()
+        running = 0.0
+
+        for x, _ in dl:
+            x = x.to(device)
+            with torch.no_grad():
+                z = encode_with_tokenizer(tokenizer, tokenizer_type, x)
+
+            optim.zero_grad(set_to_none=True)
+            loss, stats = ddpm(z)
+            loss.backward()
+            optim.step()
+            running += stats["loss"]
+
+        avg = running / len(dl)
+        print(f"[Stage2][{tokenizer_type}] epoch={epoch}/{args.epochs} loss={avg:.6f}")
+
+        torch.save(
+            {
+                "model": ddpm.state_dict(),
+                "tokenizer_type": tokenizer_type,
+                "latent_dim": latent_dim,
+                "timesteps": args.timesteps,
+                "epoch": epoch,
+            },
+            os.path.join(args.save_dir, f"ldm_{tokenizer_type}_ep{epoch:03d}.pt"),
+        )
+
+    torch.save(
+        {
+            "model": ddpm.state_dict(),
+            "tokenizer_type": tokenizer_type,
+            "latent_dim": latent_dim,
+            "timesteps": args.timesteps,
+            "epoch": args.epochs,
+        },
+        os.path.join(args.save_dir, f"ldm_{tokenizer_type}_last.pt"),
+    )
+
+
+if __name__ == "__main__":
+    main()
