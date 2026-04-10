@@ -173,6 +173,9 @@ class RankLayer(nn.Module):
             
             self.register_buffer('v', init_v.clone())
             self.register_buffer('ema_count', torch.tensor(0))
+        
+        self.pre_norm = nn.LayerNorm(latent_dim, elementwise_affine=False)
+
     
     def normalize_ranks(self, ranks):
         """将rank值从[1, max_rank]归一化到指定范围"""
@@ -368,6 +371,9 @@ class RankLayer(nn.Module):
         """
         z_flat, info = self.flatten(z)
         
+        if self.use_ema_basis and not self.softrank_method == "sigmoid":
+            z_flat = self.pre_norm(z_flat)
+
         if return_hard:
             ranked_flat = self.hard_rank(z_flat,normalize)
 
@@ -381,6 +387,9 @@ class RankLayer(nn.Module):
         z: [B, C, H, W]
         """
         z_flat, info = self.flatten(z)
+
+        if self.use_ema_basis and not self.softrank_method == "sigmoid":
+            z_flat = self.pre_norm(z_flat)
 
         norm_ranks_soft = self._soft_rank(z_flat)
         
@@ -435,22 +444,16 @@ class RankAE(nn.Module):
             sinkhorn_iters=sinkhorn_iters
         )
         self.decoder = Decoder(in_channels, latent_dim)
-        self.pre_norm = nn.LayerNorm(latent_dim, elementwise_affine=False)
         self.loss_type = loss_type
 
-    def encode(self, x):
+    def encode(self, x, rank=True):
         z = self.encoder(x)
+        if rank:
+            z = self.rank_layer.rank(z)
         return z
     
     def decode(self, z):
-        if self.use_ema_basis and not self.softrank_method == "sigmoid":
-            # [B, C, H, W] -> [B, H, W, C] 以便做 LayerNorm
-            z_perm = z.permute(0, 2, 3, 1)
-            z_norm = self.pre_norm(z_perm)
-            z = z_norm.permute(0, 3, 1, 2) # 转回 [B, C, H, W]
-        # Rank (the key operation)
         ranked_z = self.rank_layer.rank(z)
-
         return self.decoder(ranked_z)
     
     def get_loss(self, pred, target, mean=True):
@@ -466,11 +469,7 @@ class RankAE(nn.Module):
     def forward(self, x):
         # Encode
         z = self.encoder(x)
-        if self.use_ema_basis and not self.softrank_method == "sigmoid":
-            # [B, C, H, W] -> [B, H, W, C] 以便做 LayerNorm
-            z_perm = z.permute(0, 2, 3, 1)
-            z_norm = self.pre_norm(z_perm)
-            z = z_norm.permute(0, 3, 1, 2) # 转回 [B, C, H, W]
+
         # Rank (the key operation)
         ranked_z = self.rank_layer(z)
         

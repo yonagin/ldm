@@ -41,8 +41,6 @@ class ResBlock(nn.Module):
 
 
 class SimpleUNet(nn.Module):
-    """Small UNet for latent diffusion on 7x7 MNIST latents."""
-
     def __init__(self, in_channels: int = 8, model_channels: int = 64, out_channels: int = 8, time_embed_dim: int = 128):
         super().__init__()
         self.time_mlp = nn.Sequential(
