@@ -440,15 +440,7 @@ class RankAE(nn.Module):
 
     def encode(self, x):
         z = self.encoder(x)
-        if self.use_ema_basis and not self.softrank_method == "sigmoid":
-            # [B, C, H, W] -> [B, H, W, C] 以便做 LayerNorm
-            z_perm = z.permute(0, 2, 3, 1)
-            z_norm = self.pre_norm(z_perm)
-            z = z_norm.permute(0, 3, 1, 2) # 转回 [B, C, H, W]
-        # Rank (the key operation)
-        ranked_z = self.rank_layer.rank(z, return_hard=False)
-
-        return ranked_z
+        return z
     
     def decode(self, z):
         if self.use_ema_basis and not self.softrank_method == "sigmoid":
