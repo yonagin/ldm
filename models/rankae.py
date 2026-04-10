@@ -449,7 +449,7 @@ class RankAE(nn.Module):
             z_norm = self.pre_norm(z_perm)
             z = z_norm.permute(0, 3, 1, 2) # 转回 [B, C, H, W]
         # Rank (the key operation)
-        ranked_z = self.rank_layer.rank(z, return_hard=True)
+        ranked_z = self.rank_layer.rank(z)
 
         return self.decoder(ranked_z)
     
