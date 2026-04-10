@@ -438,8 +438,11 @@ class RankAE(nn.Module):
         self.pre_norm = nn.LayerNorm(latent_dim, elementwise_affine=False)
         self.loss_type = loss_type
 
-    def encode(self, x, return_hard=False, normalize=True):
+    def encode(self, x):
         z = self.encoder(x)
+        return z
+    
+    def decode(self, z, return_hard=True, normalize=True):
         if self.use_ema_basis and not self.softrank_method == "sigmoid":
             # [B, C, H, W] -> [B, H, W, C] 以便做 LayerNorm
             z_perm = z.permute(0, 2, 3, 1)
@@ -448,10 +451,7 @@ class RankAE(nn.Module):
         # Rank (the key operation)
         ranked_z = self.rank_layer.rank(z, return_hard=return_hard, normalize=normalize)
 
-        return ranked_z
-    
-    def decode(self, z):
-        return self.decoder(z)
+        return self.decoder(ranked_z)
     
     def get_loss(self, pred, target, mean=True):
         """计算 L1 或 L2 损失"""
