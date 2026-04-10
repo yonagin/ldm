@@ -5,8 +5,8 @@ from typing import Dict, Tuple
 
 import torch
 from torch.utils.data import DataLoader, Subset
-from torchvision import datasets, transforms
 
+from dataset_utils import build_dataset
 from models.diffusion import DDPM
 from models.vae import VAE
 from models.rankae import RankAE
@@ -23,11 +23,12 @@ def load_tokenizer(path: str, device: str):
     ckpt = torch.load(path, map_location=device)
     tokenizer_type = ckpt["tokenizer"]
     latent_dim = ckpt["latent_dim"]
+    in_channels = ckpt.get("in_channels", 1)
 
     if tokenizer_type == "vae":
-        tok = VAE(in_channels=1, latent_dim=latent_dim)
+        tok = VAE(in_channels=in_channels, latent_dim=latent_dim)
     elif tokenizer_type == "rankae":
-        tok = RankAE(in_channels=1, latent_dim=latent_dim)
+        tok = RankAE(in_channels=in_channels, latent_dim=latent_dim)
     else:
         raise ValueError(f"Unsupported tokenizer: {tokenizer_type}")
 
@@ -79,13 +80,9 @@ def generate_fake_images(ddpm: DDPM, tokenizer, n: int, batch_size: int, device:
 
 
 @torch.no_grad()
-def collect_real_images(data_root: str, n: int, split: str, batch_size: int):
-    tfm = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.5,), (0.5,)),
-    ])
+def collect_real_images(dataset_name: str, data_root: str, n: int, split: str, batch_size: int, img_size: int):
     is_train = split == "train"
-    ds = datasets.MNIST(root=data_root, train=is_train, download=True, transform=tfm)
+    ds, _ = build_dataset(dataset_name, root=data_root, train=is_train, img_size=img_size)
     n = min(n, len(ds))
     ds = Subset(ds, list(range(n)))
     dl = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=True)
@@ -169,6 +166,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--tokenizer-ckpt", type=str, required=True)
     parser.add_argument("--ldm-ckpt", type=str, required=True)
+    parser.add_argument("--dataset", type=str, default=None)
+    parser.add_argument("--img-size", type=int, default=None)
     parser.add_argument("--data-root", type=str, default="./data")
     parser.add_argument("--split", type=str, default="test", choices=["train", "test"])
     parser.add_argument("--num-real", type=int, default=2000)
@@ -189,7 +188,10 @@ def main():
     tokenizer, tokenizer_type, latent_dim = load_tokenizer(args.tokenizer_ckpt, args.device)
     ddpm, ldm_meta = load_ldm(args.ldm_ckpt, latent_dim=latent_dim, device=args.device)
 
-    real_x = collect_real_images(args.data_root, args.num_real, args.split, args.batch_size)
+    dataset_name = args.dataset or ldm_meta.get("dataset", "mnist")
+    img_size = args.img_size or ldm_meta.get("img_size", 28)
+
+    real_x = collect_real_images(dataset_name, args.data_root, args.num_real, args.split, args.batch_size, img_size)
     fake_x = generate_fake_images(ddpm, tokenizer, args.num_fake, args.batch_size, args.device).cpu()
 
     real_f = extract_features(real_x, tokenizer, tokenizer_type, args.device, args.batch_size)
@@ -210,6 +212,8 @@ def main():
 
     metrics = {
         "tokenizer": tokenizer_type,
+        "dataset": dataset_name,
+        "img_size": img_size,
         "latent_dim": latent_dim,
         "timesteps": ldm_meta.get("timesteps", 200),
         "latent_size": ldm_meta.get("latent_size"),

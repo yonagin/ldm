@@ -1,10 +1,10 @@
-﻿import argparse
+import argparse
 import os
 
 import torch
 from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
 
+from dataset_utils import build_dataset
 from models.diffusion import DDPM
 from models.vae import VAE
 from models.rankae import RankAE
@@ -15,11 +15,12 @@ def load_tokenizer(path: str, device: str):
     ckpt = torch.load(path, map_location=device)
     tokenizer_type = ckpt["tokenizer"]
     latent_dim = ckpt["latent_dim"]
+    in_channels = ckpt.get("in_channels", 1)
 
     if tokenizer_type == "vae":
-        tok = VAE(in_channels=1, latent_dim=latent_dim)
+        tok = VAE(in_channels=in_channels, latent_dim=latent_dim)
     elif tokenizer_type == "rankae":
-        tok = RankAE(in_channels=1, latent_dim=latent_dim)
+        tok = RankAE(in_channels=in_channels, latent_dim=latent_dim)
     else:
         raise ValueError(f"Unsupported tokenizer in checkpoint: {tokenizer_type}")
 
@@ -28,13 +29,14 @@ def load_tokenizer(path: str, device: str):
     for p in tok.parameters():
         p.requires_grad_(False)
 
-    return tok, tokenizer_type, latent_dim
+    return tok, tokenizer_type, latent_dim, in_channels
 
 
 def encode_with_tokenizer(tokenizer, tokenizer_type: str, x: torch.Tensor):
     if tokenizer_type == "vae":
         return tokenizer.encode(x).mode()
     return tokenizer.encode(x)
+
 
 @torch.no_grad()
 def infer_latent_size(tokenizer, tokenizer_type: str, dataloader, device: str) -> int:
@@ -49,6 +51,8 @@ def infer_latent_size(tokenizer, tokenizer_type: str, dataloader, device: str) -
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--tokenizer-ckpt", type=str, required=True)
+    parser.add_argument("--dataset", type=str, default=None)
+    parser.add_argument("--img-size", type=int, default=None)
     parser.add_argument("--data-root", type=str, default="./data")
     parser.add_argument("--save-dir", type=str, default="./checkpoints/stage2")
     parser.add_argument("--epochs", type=int, default=20)
@@ -61,13 +65,13 @@ def main():
     os.makedirs(args.save_dir, exist_ok=True)
     device = args.device
 
-    tokenizer, tokenizer_type, latent_dim = load_tokenizer(args.tokenizer_ckpt, device)
+    tokenizer, tokenizer_type, latent_dim, _ = load_tokenizer(args.tokenizer_ckpt, device)
 
-    tfm = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.5,), (0.5,)),
-    ])
-    ds = datasets.MNIST(root=args.data_root, train=True, download=True, transform=tfm)
+    tok_meta = torch.load(args.tokenizer_ckpt, map_location="cpu")
+    dataset_name = args.dataset or tok_meta.get("dataset", "mnist")
+    img_size = args.img_size or tok_meta.get("img_size", 28)
+
+    ds, _ = build_dataset(dataset_name, root=args.data_root, train=True, img_size=img_size)
     dl = DataLoader(ds, batch_size=args.batch_size, shuffle=True, num_workers=2, pin_memory=True)
     latent_size = infer_latent_size(tokenizer, tokenizer_type, dl, device)
 
@@ -99,30 +103,34 @@ def main():
             running += stats["loss"]
 
         avg = running / len(dl)
-        print(f"[Stage2][{tokenizer_type}] epoch={epoch}/{args.epochs} loss={avg:.6f}")
+        print(f"[Stage2][{tokenizer_type}] dataset={dataset_name} epoch={epoch}/{args.epochs} loss={avg:.6f}")
 
         torch.save(
             {
                 "model": ddpm.state_dict(),
                 "tokenizer_type": tokenizer_type,
+                "dataset": dataset_name,
+                "img_size": img_size,
                 "latent_dim": latent_dim,
                 "latent_size": latent_size,
                 "timesteps": args.timesteps,
                 "epoch": epoch,
             },
-            os.path.join(args.save_dir, f"ldm_{tokenizer_type}_ep{epoch:03d}.pt"),
+            os.path.join(args.save_dir, f"ldm_{tokenizer_type}_{dataset_name}_ep{epoch:03d}.pt"),
         )
 
     torch.save(
         {
             "model": ddpm.state_dict(),
             "tokenizer_type": tokenizer_type,
+            "dataset": dataset_name,
+            "img_size": img_size,
             "latent_dim": latent_dim,
             "latent_size": latent_size,
             "timesteps": args.timesteps,
             "epoch": args.epochs,
         },
-        os.path.join(args.save_dir, f"ldm_{tokenizer_type}_last.pt"),
+        os.path.join(args.save_dir, f"ldm_{tokenizer_type}_{dataset_name}_last.pt"),
     )
 
 

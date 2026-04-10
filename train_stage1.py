@@ -1,12 +1,12 @@
-﻿import argparse
+import argparse
 import os
 from dataclasses import dataclass
 
 import torch
 from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
 from torchvision.utils import save_image, make_grid
 
+from dataset_utils import build_dataset, supported_datasets
 from models.vae import VAE
 from models.rankae import RankAE
 
@@ -14,6 +14,8 @@ from models.rankae import RankAE
 @dataclass
 class Stage1Config:
     tokenizer: str
+    dataset: str
+    img_size: int
     data_root: str
     save_dir: str
     epochs: int
@@ -23,17 +25,19 @@ class Stage1Config:
     device: str
 
 
-def build_model(cfg: Stage1Config):
+def build_model(cfg: Stage1Config, in_channels: int):
     if cfg.tokenizer == "vae":
-        return VAE(in_channels=1, latent_dim=cfg.latent_dim)
+        return VAE(in_channels=in_channels, latent_dim=cfg.latent_dim)
     if cfg.tokenizer == "rankae":
-        return RankAE(in_channels=1, latent_dim=cfg.latent_dim)
+        return RankAE(in_channels=in_channels, latent_dim=cfg.latent_dim)
     raise ValueError(f"Unsupported tokenizer: {cfg.tokenizer}")
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--tokenizer", type=str, default="vae", choices=["vae", "rankae"])
+    parser.add_argument("--dataset", type=str, default="mnist", choices=supported_datasets())
+    parser.add_argument("--img-size", type=int, default=28)
     parser.add_argument("--data-root", type=str, default="./data")
     parser.add_argument("--save-dir", type=str, default="./checkpoints/stage1")
     parser.add_argument("--epochs", type=int, default=10)
@@ -46,14 +50,10 @@ def main():
     cfg = Stage1Config(**vars(args))
     os.makedirs(cfg.save_dir, exist_ok=True)
 
-    tfm = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.5,), (0.5,)),
-    ])
-    ds = datasets.MNIST(root=cfg.data_root, train=True, download=True, transform=tfm)
+    ds, in_channels = build_dataset(cfg.dataset, root=cfg.data_root, train=True, img_size=cfg.img_size)
     dl = DataLoader(ds, batch_size=cfg.batch_size, shuffle=True, num_workers=2, pin_memory=True)
 
-    model = build_model(cfg).to(cfg.device)
+    model = build_model(cfg, in_channels=in_channels).to(cfg.device)
     optim = torch.optim.Adam(model.parameters(), lr=cfg.lr)
 
     fixed, _ = next(iter(dl))
@@ -77,7 +77,7 @@ def main():
             running += stats["loss"]
 
         avg = running / len(dl)
-        print(f"[Stage1][{cfg.tokenizer}] epoch={epoch}/{cfg.epochs} loss={avg:.6f}")
+        print(f"[Stage1][{cfg.tokenizer}] dataset={cfg.dataset} epoch={epoch}/{cfg.epochs} loss={avg:.6f}")
 
         model.eval()
         with torch.no_grad():
@@ -94,20 +94,26 @@ def main():
 
         ckpt = {
             "tokenizer": cfg.tokenizer,
+            "dataset": cfg.dataset,
+            "img_size": cfg.img_size,
+            "in_channels": in_channels,
             "latent_dim": cfg.latent_dim,
             "model": model.state_dict(),
             "epoch": epoch,
         }
-        torch.save(ckpt, os.path.join(cfg.save_dir, f"{cfg.tokenizer}_mnist_ep{epoch:03d}.pt"))
+        torch.save(ckpt, os.path.join(cfg.save_dir, f"{cfg.tokenizer}_{cfg.dataset}_ep{epoch:03d}.pt"))
 
     torch.save(
         {
             "tokenizer": cfg.tokenizer,
+            "dataset": cfg.dataset,
+            "img_size": cfg.img_size,
+            "in_channels": in_channels,
             "latent_dim": cfg.latent_dim,
             "model": model.state_dict(),
             "epoch": cfg.epochs,
         },
-        os.path.join(cfg.save_dir, f"{cfg.tokenizer}_mnist_last.pt"),
+        os.path.join(cfg.save_dir, f"{cfg.tokenizer}_{cfg.dataset}_last.pt"),
     )
 
 

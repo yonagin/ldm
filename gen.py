@@ -1,4 +1,4 @@
-﻿import argparse
+import argparse
 import os
 
 import torch
@@ -14,21 +14,23 @@ def load_tokenizer(path: str, device: str):
     ckpt = torch.load(path, map_location=device)
     tokenizer_type = ckpt["tokenizer"]
     latent_dim = ckpt["latent_dim"]
+    in_channels = ckpt.get("in_channels", 1)
 
     if tokenizer_type == "vae":
-        tok = VAE(in_channels=1, latent_dim=latent_dim)
+        tok = VAE(in_channels=in_channels, latent_dim=latent_dim)
     elif tokenizer_type == "rankae":
-        tok = RankAE(in_channels=1, latent_dim=latent_dim)
+        tok = RankAE(in_channels=in_channels, latent_dim=latent_dim)
     else:
         raise ValueError(f"Unsupported tokenizer: {tokenizer_type}")
 
     tok.load_state_dict(ckpt["model"])
     tok.to(device).eval()
-    return tok, tokenizer_type, latent_dim
+    return tok, tokenizer_type, latent_dim, in_channels
+
 
 @torch.no_grad()
-def infer_latent_size_from_dummy(tokenizer, tokenizer_type: str, device: str, input_size: int) -> int:
-    x = torch.zeros(1, 1, input_size, input_size, device=device)
+def infer_latent_size_from_dummy(tokenizer, tokenizer_type: str, device: str, input_size: int, in_channels: int) -> int:
+    x = torch.zeros(1, in_channels, input_size, input_size, device=device)
     if tokenizer_type == "vae":
         z = tokenizer.encode(x).mode()
     else:
@@ -51,13 +53,14 @@ def main():
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     device = args.device
 
-    tokenizer, tokenizer_type, latent_dim = load_tokenizer(args.tokenizer_ckpt, device)
+    tokenizer, tokenizer_type, latent_dim, in_channels = load_tokenizer(args.tokenizer_ckpt, device)
 
     ldm_ckpt = torch.load(args.ldm_ckpt, map_location=device)
     timesteps = ldm_ckpt.get("timesteps", 200)
     latent_size = ldm_ckpt.get("latent_size")
+    img_size = ldm_ckpt.get("img_size", args.img_size)
     if latent_size is None:
-        latent_size = infer_latent_size_from_dummy(tokenizer, tokenizer_type, device, args.img_size)
+        latent_size = infer_latent_size_from_dummy(tokenizer, tokenizer_type, device, img_size, in_channels)
 
     unet = SimpleUNet(in_channels=latent_dim, out_channels=latent_dim)
     ddpm = DDPM(
