@@ -39,7 +39,7 @@ def main():
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--lr", type=float, default=2e-4)
-    parser.add_argument("--latent-dim", type=int, default=16)
+    parser.add_argument("--latent-dim", type=int, default=8)
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
 
