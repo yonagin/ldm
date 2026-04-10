@@ -9,6 +9,7 @@ from torchvision.utils import save_image, make_grid
 from dataset_utils import build_dataset, supported_datasets
 from models.vae import VAE
 from models.rankae import RankAE
+from models.vqvae import VQVAE
 
 
 @dataclass
@@ -30,12 +31,14 @@ def build_model(cfg: Stage1Config, in_channels: int):
         return VAE(in_channels=in_channels, latent_dim=cfg.latent_dim)
     if cfg.tokenizer == "rankae":
         return RankAE(in_channels=in_channels, latent_dim=cfg.latent_dim)
+    if cfg.tokenizer == "vqvae":
+        return VQVAE(in_channels=in_channels, latent_dim=cfg.latent_dim)
     raise ValueError(f"Unsupported tokenizer: {cfg.tokenizer}")
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--tokenizer", type=str, default="vae", choices=["vae", "rankae"])
+    parser.add_argument("--tokenizer", type=str, default="vae", choices=["vae", "rankae", "vqvae"])
     parser.add_argument("--dataset", type=str, default="mnist", choices=supported_datasets())
     parser.add_argument("--img-size", type=int, default=32)
     parser.add_argument("--data-root", type=str, default="./data")
@@ -66,7 +69,7 @@ def main():
             x = x.to(cfg.device)
             optim.zero_grad(set_to_none=True)
 
-            if cfg.tokenizer == "vae":
+            if cfg.tokenizer in ["vae", "vqvae"]:
                 loss, stats = model(x)
             else:
                 loss = model(x)

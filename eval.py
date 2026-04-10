@@ -10,6 +10,7 @@ from dataset_utils import build_dataset
 from models.diffusion import DDPM
 from models.vae import VAE
 from models.rankae import RankAE
+from models.vqvae import VQVAE
 from modules.unet import SimpleUNet
 
 
@@ -29,6 +30,8 @@ def load_tokenizer(path: str, device: str):
         tok = VAE(in_channels=in_channels, latent_dim=latent_dim)
     elif tokenizer_type == "rankae":
         tok = RankAE(in_channels=in_channels, latent_dim=latent_dim)
+    elif tokenizer_type == "vqvae":
+        tok = VQVAE(in_channels=in_channels, latent_dim=latent_dim)
     else:
         raise ValueError(f"Unsupported tokenizer: {tokenizer_type}")
 
