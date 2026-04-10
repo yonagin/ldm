@@ -223,8 +223,7 @@ class DDPM(nn.Module):
         # === VLB 损失权重 ===
         if self.parameterization == "eps":
             lvlb_weights = (
-                betas ** 2 /
-                (2 * posterior_variance * alphas * (1 - alphas_cumprod))
+                betas ** 2 /(2 * posterior_variance * alphas * (1 - alphas_cumprod))
             )
         elif self.parameterization == "x0":
             lvlb_weights = (

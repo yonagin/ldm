@@ -407,7 +407,7 @@ class RankAE(nn.Module):
         softrank_method="sigmoid",
         loss_type: str = "l2",
         gradient_mode="STE",
-        normalize_range="0_1",
+        normalize_range="-1_1",
         use_ema_basis=False,
         ema_decay=0.99,
         ema_interpolate="interpolate",
