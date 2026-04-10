@@ -68,8 +68,8 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, ch=32, z_channels=8, ch_mult=(1,2,4), num_res_blocks=2, norm_type="group",
-                 dropout=0.0, resamp_with_conv=True, out_channels=3):
+    def __init__(self, out_channels=3, z_channels=8, ch=32, ch_mult=(1,2,4), num_res_blocks=2, norm_type="group",
+                 dropout=0.0, resamp_with_conv=True):
         super().__init__()
         self.num_resolutions = len(ch_mult)
         self.num_res_blocks = num_res_blocks
