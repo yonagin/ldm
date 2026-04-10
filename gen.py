@@ -44,7 +44,6 @@ def main():
     parser.add_argument("--ldm-ckpt", type=str, required=True)
     parser.add_argument("--out", type=str, default="./samples/generated.png")
     parser.add_argument("--n", type=int, default=64)
-    parser.add_argument("--input-size", type=int, default=28, help="Only used if ldm checkpoint has no latent_size.")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
 
