@@ -3,15 +3,28 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+
 class VectorQuantizer(nn.Module):
-    def __init__(self, n_e: int, e_dim: int, beta: float = 0.25):
+    def __init__(self, n_e, e_dim, beta=0.25, norm=True, scale=True):
         super().__init__()
         self.n_e = n_e
         self.e_dim = e_dim
         self.beta = beta
 
         self.embedding = nn.Embedding(n_e, e_dim)
-        nn.init.normal_(self.embedding.weight, mean=0, std=self.e_dim**-0.5)
+        self._scale=scale
+        self._norm = norm
+        if scale:
+            nn.init.normal_(self.embedding.weight, mean=0, std=1)
+            self.scale = nn.Parameter(torch.ones(e_dim) * self.e_dim ** -0.5)
+        else:
+            nn.init.normal_(self.embedding.weight, mean=0, std=self.e_dim**-0.5)
+
+
+    def norm(weight):
+        std = weight.std(dim=0, keepdim=True).detach()
+        std = torch.clamp(std, min=1e-8)
+        return weight / std
 
     def forward(self, z: torch.Tensor):
         # z: [B, C, H, W]
@@ -22,6 +35,12 @@ class VectorQuantizer(nn.Module):
         z_flat = z_perm.view(-1, self.e_dim)
 
         emb = self.embedding.weight
+        if self._norm:
+            emb = self.norm(emb) 
+
+        if self._scale:
+            emb *= self.scale
+
         distances = (
             z_flat.pow(2).sum(dim=1, keepdim=True)
             + emb.pow(2).sum(dim=1)
@@ -29,7 +48,7 @@ class VectorQuantizer(nn.Module):
         )
 
         indices = torch.argmin(distances, dim=1)
-        z_q_flat = self.embedding(indices)
+        z_q_flat = F.embedding(indices, emb)
         z_q = z_q_flat.view_as(z_perm)
 
         codebook_loss = F.mse_loss(z_q, z_perm.detach())
