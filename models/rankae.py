@@ -446,7 +446,7 @@ class RankAE(nn.Module):
         self.decoder = Decoder(in_channels, latent_dim)
         self.loss_type = loss_type
 
-    def encode(self, x, rank=True):
+    def encode(self, x, rank=False):
         z = self.encoder(x)
         if rank:
             z = self.rank_layer.rank(z)
