@@ -54,7 +54,7 @@ def main():
     dl = DataLoader(ds, batch_size=cfg.batch_size, shuffle=True, num_workers=2, pin_memory=True)
 
     model = build_model(cfg).to(cfg.device)
-    optim = torch.optim.AdamW(model.parameters(), lr=cfg.lr)
+    optim = torch.optim.Adam(model.parameters(), lr=cfg.lr)
 
     fixed, _ = next(iter(dl))
     fixed = fixed[:64].to(cfg.device)

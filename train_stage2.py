@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
 from models.diffusion import DDPM
-from models.vae import SimpleVAE
+from models.vae import VAE
 from models.rankae import RankAE
 from modules.unet import SimpleUNet
 
