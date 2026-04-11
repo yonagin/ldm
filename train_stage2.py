@@ -73,7 +73,7 @@ def main():
 
     tok_meta = torch.load(args.tokenizer_ckpt, map_location="cpu")
     dataset_name = args.dataset or tok_meta.get("dataset", "mnist")
-    id = args.id or tok_meta.get("id")
+    id = args.id or tok_meta.get("id","mnst")
     img_size = args.img_size or tok_meta.get("img_size", 32)
 
     ds, _ = build_dataset(
