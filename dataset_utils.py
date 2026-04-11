@@ -110,9 +110,9 @@ def build_dataset(dataset_name: str, root: str, train: bool, img_size: int, id: 
             raise ValueError("dataset=custom requires --id")
         split = "train" if train else "test"
         try:
-            hf_ds = load_dataset(id, split=split, cache_dir=root)
+            hf_ds = load_dataset(id, split=split, cache_dir=root, trust_remote_code=True)
         except Exception:
-            hf_ds = load_dataset(id, split="train", cache_dir=root)
+            hf_ds = load_dataset(id, split="train", cache_dir=root, trust_remote_code=True)
         in_channels = _infer_hf_channels(hf_ds)
         tfm = build_transform(in_channels=in_channels, img_size=img_size)
         ds = HFDatasetWrapper(hf_ds=hf_ds, tfm=tfm, in_channels=in_channels)
