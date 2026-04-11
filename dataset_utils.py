@@ -62,22 +62,33 @@ def _as_pil_image(value):
     raise ValueError("Unsupported image type in HF sample.")
 
 
-def _build_hf_custom_dataset(hf_ds, tfm, in_channels: int):
-    mode = "L" if in_channels == 1 else "RGB"
+# ✅ 关键修复：将局部函数提取为顶层可调用类，支持 pickle 序列化
+class HFBatchTransform:
+    """
+    顶层可调用类，替代局部函数 _transform，
+    解决 multiprocessing pickle 无法序列化局部函数的问题。
+    """
+    def __init__(self, tfm, in_channels: int):
+        self.tfm = tfm
+        self.mode = "L" if in_channels == 1 else "RGB"
 
-    def _transform(batch):
+    def __call__(self, batch):
         images = None
         for key in ["image", "img", "pixel_values"]:
             if key in batch:
                 images = batch[key]
                 break
         if images is None:
-            raise ValueError("No image-like field found in HF batch. Expected one of: image, img, pixel_values.")
+            raise ValueError(
+                "No image-like field found in HF batch. "
+                "Expected one of: image, img, pixel_values."
+            )
 
         if not isinstance(images, list):
             images = [images]
 
-        xs = [tfm(_as_pil_image(img).convert(mode)) for img in images]
+        xs = [self.tfm(_as_pil_image(img).convert(self.mode)) for img in images]
+
         labels = batch.get("label")
         if labels is None:
             labels = [0] * len(xs)
@@ -88,7 +99,11 @@ def _build_hf_custom_dataset(hf_ds, tfm, in_channels: int):
 
         return {"pixel_values": xs, "label": labels}
 
-    return hf_ds.with_transform(_transform)
+
+def _build_hf_custom_dataset(hf_ds, tfm, in_channels: int):
+    # ✅ 使用顶层类实例替代局部函数
+    transform_fn = HFBatchTransform(tfm=tfm, in_channels=in_channels)
+    return hf_ds.with_transform(transform_fn)
 
 
 def _infer_hf_channels(hf_ds) -> int:
@@ -103,7 +118,6 @@ def _infer_hf_channels(hf_ds) -> int:
                 if value.ndim == 2:
                     return 1
                 if value.ndim == 3:
-                    # CHW or HWC
                     c = value.shape[0] if value.shape[0] <= 4 else value.shape[-1]
                     return 1 if c == 1 else 3
     return 3
@@ -121,7 +135,9 @@ def unpack_batch(batch):
         elif "x" in batch:
             x = batch["x"]
         else:
-            raise ValueError("Batch dict missing image tensor. Expected key 'pixel_values' or 'x'.")
+            raise ValueError(
+                "Batch dict missing image tensor. Expected key 'pixel_values' or 'x'."
+            )
 
         y = batch.get("label")
         if y is None:
