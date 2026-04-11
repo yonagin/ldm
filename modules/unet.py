@@ -446,7 +446,7 @@ class UNetModel(nn.Module):
         out_channels,
         model_channels=32,
         num_res_blocks=2,
-        attention_resolutions=1,
+        attention_resolutions=[2, 1],
         dropout=0,
         channel_mult=(1, 2),
         conv_resample=True,
