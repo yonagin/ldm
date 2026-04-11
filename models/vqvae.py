@@ -11,14 +11,13 @@ class VQVAE(nn.Module):
         self,
         in_channels: int = 1,
         latent_dim: int = 8,
-        z_channels: int = 128,
         num_embeddings: int = 512,
         beta: float = 0.25,
     ):
         super().__init__()
-        self.encoder = Encoder(in_channels, z_channels=z_channels)
+        self.encoder = Encoder(in_channels, z_channels=latent_dim)
         self.quantize = VectorQuantizer(n_e=num_embeddings, e_dim=latent_dim, beta=beta)
-        self.decoder = Decoder(in_channels, z_channels=z_channels)
+        self.decoder = Decoder(in_channels, z_channels=latent_dim)
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         h = self.encoder(x)
