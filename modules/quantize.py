@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 
 class VectorQuantizer(nn.Module):
-    def __init__(self, n_e, e_dim, beta=0.25, norm=True, scale=True):
+    def __init__(self, n_e, e_dim, beta=0.25, ema_decay=0.99, norm=False, scale=False):
         super().__init__()
         self.n_e = n_e
         self.e_dim = e_dim
@@ -17,10 +17,17 @@ class VectorQuantizer(nn.Module):
 
         if scale:
             nn.init.normal_(self.embedding.weight, mean=0, std=1)
-            self.scale = nn.Parameter(torch.ones(e_dim) * self.e_dim ** -0.5)
+            self.register_buffer('scale', torch.ones(e_dim) * self.e_dim ** -0.5)
+            self.register_buffer('ema_decay', torch.tensor(ema_decay))
         else:
             nn.init.normal_(self.embedding.weight, mean=0, std=self.e_dim**-0.5)
 
+    @torch.no_grad()
+    def update_scale(self, z):
+        if not self.training:
+            return
+        batch_std = z.std(dim=0)  # [n]
+        self.scale.mul_(self.ema_decay).add_(batch_std, alpha=1 - self.ema_decay)
 
     def norm(self, weight):
         std = weight.std(dim=0, keepdim=True).detach()
@@ -40,6 +47,7 @@ class VectorQuantizer(nn.Module):
             emb = self.norm(emb) 
 
         if self._scale:
+            self.update_scale(z_flat)
             emb *= self.scale
 
         distances = (
