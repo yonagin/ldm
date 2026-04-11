@@ -412,7 +412,7 @@ class RankAE(nn.Module):
         self,
         in_channels,
         latent_dim,
-        rank=True,
+        rank=False,
         slice_mode="channel",
         softrank_method="sigmoid",
         loss_type: str = "l2",
