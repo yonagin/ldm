@@ -63,10 +63,6 @@ def _as_pil_image(value):
 
 
 class HFBatchTransform:
-    """
-    顶层可调用类，替代局部函数 _transform，
-    解决 multiprocessing pickle 无法序列化局部函数的问题。
-    """
     def __init__(self, tfm, in_channels: int):
         self.tfm = tfm
         self.mode = "L" if in_channels == 1 else "RGB"

@@ -68,7 +68,7 @@ def main():
         shuffle=True,
         num_workers=4,
         pin_memory=True,
-        multiprocessing_context="spawn",
+        
     )
 
     model = build_model(cfg, in_channels=in_channels).to(cfg.device)
