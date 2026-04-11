@@ -3,7 +3,6 @@ from typing import Dict
 from datasets import load_dataset
 from PIL import Image
 import torch
-from torch.utils.data import Dataset
 from torchvision import datasets, transforms
 
 
@@ -53,36 +52,43 @@ def _resolve_split_kwargs(dataset_name: str, train: bool) -> Dict:
     raise ValueError(f"Unsupported dataset: {dataset_name}. Supported: {supported_datasets()}")
 
 
-class HFDatasetWrapper(Dataset):
-    def __init__(self, hf_ds, tfm, in_channels: int):
-        self.hf_ds = hf_ds
-        self.tfm = tfm
-        self.in_channels = in_channels
+def _as_pil_image(value):
+    if isinstance(value, Image.Image):
+        return value
+    if torch.is_tensor(value):
+        return transforms.ToPILImage()(value)
+    if isinstance(value, dict) and "path" in value:
+        return Image.open(value["path"]).convert("RGB")
+    raise ValueError("Unsupported image type in HF sample.")
 
-    def __len__(self):
-        return len(self.hf_ds)
 
-    def _extract_image(self, sample):
+def _build_hf_custom_dataset(hf_ds, tfm, in_channels: int):
+    mode = "L" if in_channels == 1 else "RGB"
+
+    def _transform(batch):
+        images = None
         for key in ["image", "img", "pixel_values"]:
-            if key in sample:
-                value = sample[key]
-                if isinstance(value, Image.Image):
-                    return value
-                if torch.is_tensor(value):
-                    return transforms.ToPILImage()(value)
-                if isinstance(value, dict) and "path" in value:
-                    return Image.open(value["path"]).convert("RGB")
-        raise ValueError("No image-like field found in sample. Expected one of: image, img, pixel_values.")
+            if key in batch:
+                images = batch[key]
+                break
+        if images is None:
+            raise ValueError("No image-like field found in HF batch. Expected one of: image, img, pixel_values.")
 
-    def __getitem__(self, idx):
-        sample = self.hf_ds[idx]
-        image = self._extract_image(sample)
-        image = image.convert("L" if self.in_channels == 1 else "RGB")
-        x = self.tfm(image)
-        y = sample.get("label", 0)
-        if y is None:
-            y = 0
-        return x, int(y)
+        if not isinstance(images, list):
+            images = [images]
+
+        xs = [tfm(_as_pil_image(img).convert(mode)) for img in images]
+        labels = batch.get("label")
+        if labels is None:
+            labels = [0] * len(xs)
+        elif not isinstance(labels, list):
+            labels = [int(labels)]
+        else:
+            labels = [0 if y is None else int(y) for y in labels]
+
+        return {"pixel_values": xs, "label": labels}
+
+    return hf_ds.with_transform(_transform)
 
 
 def _infer_hf_channels(hf_ds) -> int:
@@ -103,6 +109,31 @@ def _infer_hf_channels(hf_ds) -> int:
     return 3
 
 
+def unpack_batch(batch):
+    if isinstance(batch, (list, tuple)):
+        if len(batch) < 2:
+            raise ValueError("Expected batch tuple/list as (x, y).")
+        return batch[0], batch[1]
+
+    if isinstance(batch, dict):
+        if "pixel_values" in batch:
+            x = batch["pixel_values"]
+        elif "x" in batch:
+            x = batch["x"]
+        else:
+            raise ValueError("Batch dict missing image tensor. Expected key 'pixel_values' or 'x'.")
+
+        y = batch.get("label")
+        if y is None:
+            if torch.is_tensor(x):
+                y = torch.zeros(x.shape[0], dtype=torch.long)
+            else:
+                y = 0
+        return x, y
+
+    raise TypeError(f"Unsupported batch type: {type(batch)}")
+
+
 def build_dataset(dataset_name: str, root: str, train: bool, img_size: int, id: str = None):
     name = dataset_name.lower()
     if name == "custom":
@@ -115,7 +146,7 @@ def build_dataset(dataset_name: str, root: str, train: bool, img_size: int, id: 
             hf_ds = load_dataset(id, split="train", cache_dir=root, trust_remote_code=True)
         in_channels = _infer_hf_channels(hf_ds)
         tfm = build_transform(in_channels=in_channels, img_size=img_size)
-        ds = HFDatasetWrapper(hf_ds=hf_ds, tfm=tfm, in_channels=in_channels)
+        ds = _build_hf_custom_dataset(hf_ds=hf_ds, tfm=tfm, in_channels=in_channels)
         return ds, in_channels
 
     in_channels = infer_in_channels(name)

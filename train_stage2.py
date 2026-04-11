@@ -4,7 +4,7 @@ import os
 import torch
 from torch.utils.data import DataLoader
 
-from dataset_utils import build_dataset
+from dataset_utils import build_dataset, unpack_batch
 from models.diffusion import DDPM
 from models.vae import VAE
 from models.rankae import RankAE
@@ -43,7 +43,7 @@ def encode_with_tokenizer(tokenizer, tokenizer_type: str, x: torch.Tensor):
 
 @torch.no_grad()
 def infer_latent_size(tokenizer, tokenizer_type: str, dataloader, device: str) -> int:
-    x, _ = next(iter(dataloader))
+    x, _ = unpack_batch(next(iter(dataloader)))
     x = x.to(device)
     z = encode_with_tokenizer(tokenizer, tokenizer_type, x)
     if z.ndim != 4 or z.shape[-1] != z.shape[-2]:
@@ -102,7 +102,8 @@ def main():
         ddpm.train()
         running = 0.0
 
-        for x, _ in dl:
+        for batch in dl:
+            x, _ = unpack_batch(batch)
             x = x.to(device)
             with torch.no_grad():
                 z = encode_with_tokenizer(tokenizer, tokenizer_type, x)

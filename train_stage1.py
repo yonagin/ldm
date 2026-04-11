@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import DataLoader
 from torchvision.utils import save_image, make_grid
 
-from dataset_utils import build_dataset, supported_datasets
+from dataset_utils import build_dataset, supported_datasets, unpack_batch
 from models.vae import VAE
 from models.rankae import RankAE
 from models.vqvae import VQVAE
@@ -62,18 +62,26 @@ def main():
         img_size=cfg.img_size,
         id=cfg.id,
     )
-    dl = DataLoader(ds, batch_size=cfg.batch_size, shuffle=True, num_workers=4, pin_memory=True, multiprocessing_context="spawn")
+    dl = DataLoader(
+        ds,
+        batch_size=cfg.batch_size,
+        shuffle=True,
+        num_workers=4,
+        pin_memory=True,
+        multiprocessing_context="spawn",
+    )
 
     model = build_model(cfg, in_channels=in_channels).to(cfg.device)
     optim = torch.optim.Adam(model.parameters(), lr=cfg.lr)
 
-    fixed, _ = next(iter(dl))
+    fixed, _ = unpack_batch(next(iter(dl)))
     fixed = fixed[:64].to(cfg.device)
 
     for epoch in range(1, cfg.epochs + 1):
         model.train()
         running = 0.0
-        for x, _ in dl:
+        for batch in dl:
+            x, _ = unpack_batch(batch)
             x = x.to(cfg.device)
             optim.zero_grad(set_to_none=True)
 

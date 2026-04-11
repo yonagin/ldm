@@ -6,7 +6,7 @@ from typing import Dict, Tuple
 import torch
 from torch.utils.data import DataLoader, Subset
 
-from dataset_utils import build_dataset
+from dataset_utils import build_dataset, unpack_batch
 from models.diffusion import DDPM
 from models.vae import VAE
 from models.rankae import RankAE
@@ -105,7 +105,8 @@ def collect_real_images(
     dl = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=True)
 
     xs = []
-    for x, _ in dl:
+    for batch in dl:
+        x, _ = unpack_batch(batch)
         xs.append(x)
     return torch.cat(xs, dim=0)
 
