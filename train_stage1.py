@@ -16,6 +16,7 @@ from models.vqvae import VQVAE
 class Stage1Config:
     tokenizer: str
     dataset: str
+    id: str
     img_size: int
     data_root: str
     save_dir: str
@@ -40,6 +41,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--tokenizer", type=str, default="vae", choices=["vae", "rankae", "vqvae"])
     parser.add_argument("--dataset", type=str, default="mnist", choices=supported_datasets())
+    parser.add_argument("--id", type=str, default=None)
     parser.add_argument("--img-size", type=int, default=32)
     parser.add_argument("--data-root", type=str, default="./data")
     parser.add_argument("--save-dir", type=str, default="./checkpoints/stage1")
@@ -53,7 +55,13 @@ def main():
     cfg = Stage1Config(**vars(args))
     os.makedirs(cfg.save_dir, exist_ok=True)
 
-    ds, in_channels = build_dataset(cfg.dataset, root=cfg.data_root, train=True, img_size=cfg.img_size)
+    ds, in_channels = build_dataset(
+        cfg.dataset,
+        root=cfg.data_root,
+        train=True,
+        img_size=cfg.img_size,
+        id=cfg.id,
+    )
     dl = DataLoader(ds, batch_size=cfg.batch_size, shuffle=True, num_workers=2, pin_memory=True)
 
     model = build_model(cfg, in_channels=in_channels).to(cfg.device)
@@ -98,6 +106,7 @@ def main():
         ckpt = {
             "tokenizer": cfg.tokenizer,
             "dataset": cfg.dataset,
+            "id": cfg.id,
             "img_size": cfg.img_size,
             "in_channels": in_channels,
             "latent_dim": cfg.latent_dim,
@@ -110,6 +119,7 @@ def main():
         {
             "tokenizer": cfg.tokenizer,
             "dataset": cfg.dataset,
+            "id": cfg.id,
             "img_size": cfg.img_size,
             "in_channels": in_channels,
             "latent_dim": cfg.latent_dim,

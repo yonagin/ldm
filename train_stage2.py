@@ -55,6 +55,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--tokenizer-ckpt", type=str, required=True)
     parser.add_argument("--dataset", type=str, default=None)
+    parser.add_argument("--id", type=str, default=None)
     parser.add_argument("--img-size", type=int, default=None)
     parser.add_argument("--data-root", type=str, default="./data")
     parser.add_argument("--save-dir", type=str, default="./checkpoints/stage2")
@@ -72,9 +73,16 @@ def main():
 
     tok_meta = torch.load(args.tokenizer_ckpt, map_location="cpu")
     dataset_name = args.dataset or tok_meta.get("dataset", "mnist")
-    img_size = args.img_size or tok_meta.get("img_size", 28)
+    id = args.id or tok_meta.get("id")
+    img_size = args.img_size or tok_meta.get("img_size", 32)
 
-    ds, _ = build_dataset(dataset_name, root=args.data_root, train=True, img_size=img_size)
+    ds, _ = build_dataset(
+        dataset_name,
+        root=args.data_root,
+        train=True,
+        img_size=img_size,
+        id=id,
+    )
     dl = DataLoader(ds, batch_size=args.batch_size, shuffle=True, num_workers=2, pin_memory=True)
     latent_size = infer_latent_size(tokenizer, tokenizer_type, dl, device)
 
@@ -113,6 +121,7 @@ def main():
                 "model": ddpm.state_dict(),
                 "tokenizer_type": tokenizer_type,
                 "dataset": dataset_name,
+                "id": id,
                 "img_size": img_size,
                 "latent_dim": latent_dim,
                 "latent_size": latent_size,
@@ -127,6 +136,7 @@ def main():
             "model": ddpm.state_dict(),
             "tokenizer_type": tokenizer_type,
             "dataset": dataset_name,
+            "id": id,
             "img_size": img_size,
             "latent_dim": latent_dim,
             "latent_size": latent_size,
