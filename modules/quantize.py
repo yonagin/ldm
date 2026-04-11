@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 
 class VectorQuantizer(nn.Module):
-    def __init__(self, n_e, e_dim, beta=0.25, ema_decay=0.99, norm=False, scale=False):
+    def __init__(self, n_e, e_dim, beta=0.25, ema_decay=0.99, norm=True, scale=True):
         super().__init__()
         self.n_e = n_e
         self.e_dim = e_dim

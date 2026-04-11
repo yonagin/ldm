@@ -11,7 +11,7 @@ class VQVAE(nn.Module):
         self,
         in_channels: int = 1,
         latent_dim: int = 8,
-        num_embeddings: int = 512,
+        num_embeddings: int = 65536,
         beta: float = 0.25,
     ):
         super().__init__()
