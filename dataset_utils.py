@@ -1,10 +1,10 @@
-from typing import Dict, Optional
+from typing import Dict
+
 from datasets import load_dataset
 from PIL import Image
 import torch
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
-import numpy as np
 
 
 DATASET_CHANNELS: Dict[str, int] = {
@@ -50,56 +50,38 @@ def _resolve_split_kwargs(dataset_name: str, train: bool) -> Dict:
         return {"train": train}
     if name in {"svhn", "stl10"}:
         return {"split": "train" if train else "test"}
-    raise ValueError(f"Unsupported dataset: {dataset_name}.")
+    raise ValueError(f"Unsupported dataset: {dataset_name}. Supported: {supported_datasets()}")
 
 
 class HFDatasetWrapper(Dataset):
-    """
-    关键修复：
-    1. 构造时探测一次 image_key，避免 __getitem__ 每次都遍历 key
-    2. 用 hf_ds.with_format(None) 确保返回 Python 原生对象而非 Arrow
-    3. 支持 numpy array 输入（HF 经常返回 np.ndarray）
-    """
-
     def __init__(self, hf_ds, tfm, in_channels: int):
-        # 关键：显式设置格式，避免 Arrow 反序列化开销
-        self.hf_ds = hf_ds.with_format(None)  # 返回纯 Python/PIL
+        self.hf_ds = hf_ds
         self.tfm = tfm
         self.in_channels = in_channels
-        self.image_key = self._detect_image_key()
-        self.mode = "L" if in_channels == 1 else "RGB"
-
-    def _detect_image_key(self) -> str:
-        """只在初始化时探测一次"""
-        sample = self.hf_ds[0]
-        for key in ["image", "img", "pixel_values"]:
-            if key in sample:
-                return key
-        raise ValueError(
-            f"No image field found. Available keys: {list(sample.keys())}"
-        )
 
     def __len__(self):
         return len(self.hf_ds)
 
-    def _to_pil(self, value) -> Image.Image:
-        """统一转换为 PIL Image"""
-        if isinstance(value, Image.Image):
-            return value
-        if isinstance(value, np.ndarray):
-            # HF 很多数据集返回 numpy array，直接用 PIL 转，避免绕一圈
-            return Image.fromarray(value)
-        if torch.is_tensor(value):
-            return transforms.ToPILImage()(value)
-        if isinstance(value, dict) and "path" in value:
-            return Image.open(value["path"])
-        raise TypeError(f"Cannot convert type {type(value)} to PIL Image")
+    def _extract_image(self, sample):
+        for key in ["image", "img", "pixel_values"]:
+            if key in sample:
+                value = sample[key]
+                if isinstance(value, Image.Image):
+                    return value
+                if torch.is_tensor(value):
+                    return transforms.ToPILImage()(value)
+                if isinstance(value, dict) and "path" in value:
+                    return Image.open(value["path"]).convert("RGB")
+        raise ValueError("No image-like field found in sample. Expected one of: image, img, pixel_values.")
 
     def __getitem__(self, idx):
         sample = self.hf_ds[idx]
-        image = self._to_pil(sample[self.image_key]).convert(self.mode)
+        image = self._extract_image(sample)
+        image = image.convert("L" if self.in_channels == 1 else "RGB")
         x = self.tfm(image)
-        y = sample.get("label", 0) or 0
+        y = sample.get("label", 0)
+        if y is None:
+            y = 0
         return x, int(y)
 
 
@@ -109,68 +91,52 @@ def _infer_hf_channels(hf_ds) -> int:
         if key in sample:
             value = sample[key]
             if isinstance(value, Image.Image):
-                return 1 if len(value.getbands()) == 1 else 3
-            if isinstance(value, np.ndarray):
-                if value.ndim == 2:
-                    return 1
-                return 1 if value.shape[-1] == 1 else 3
+                bands = value.getbands()
+                return 1 if len(bands) == 1 else 3
             if torch.is_tensor(value):
                 if value.ndim == 2:
                     return 1
-                c = value.shape[0] if value.shape[0] <= 4 else value.shape[-1]
-                return 1 if c == 1 else 3
+                if value.ndim == 3:
+                    # CHW or HWC
+                    c = value.shape[0] if value.shape[0] <= 4 else value.shape[-1]
+                    return 1 if c == 1 else 3
     return 3
 
 
-def build_dataset(
-    dataset_name: str,
-    root: str,
-    train: bool,
-    img_size: int,
-    id: Optional[str] = None,
-    num_proc: int = 4,  # 新增：预处理并行数
-):
+def build_dataset(dataset_name: str, root: str, train: bool, img_size: int, id: str = None):
     name = dataset_name.lower()
-
     if name == "custom":
         if not id:
             raise ValueError("dataset=custom requires --id")
         split = "train" if train else "test"
         try:
-            hf_ds = load_dataset(
-                id,
-                split=split,
-                cache_dir=root,
-                trust_remote_code=True,
-                num_proc=num_proc,  # 并行下载/处理
-            )
+            hf_ds = load_dataset(id, split=split, cache_dir=root, trust_remote_code=True)
         except Exception:
-            hf_ds = load_dataset(
-                id,
-                split="train",
-                cache_dir=root,
-                trust_remote_code=True,
-                num_proc=num_proc,
-            )
-
+            hf_ds = load_dataset(id, split="train", cache_dir=root, trust_remote_code=True)
         in_channels = _infer_hf_channels(hf_ds)
         tfm = build_transform(in_channels=in_channels, img_size=img_size)
         ds = HFDatasetWrapper(hf_ds=hf_ds, tfm=tfm, in_channels=in_channels)
         return ds, in_channels
 
-    # 以下 torchvision 原生数据集不变
     in_channels = infer_in_channels(name)
     tfm = build_transform(in_channels=in_channels, img_size=img_size)
     split_kwargs = _resolve_split_kwargs(name, train=train)
 
-    DS_MAP = {
-        "mnist": datasets.MNIST,
-        "fashionmnist": datasets.FashionMNIST,
-        "kmnist": datasets.KMNIST,
-        "cifar10": datasets.CIFAR10,
-        "cifar100": datasets.CIFAR100,
-        "svhn": datasets.SVHN,
-        "stl10": datasets.STL10,
-    }
-    ds = DS_MAP[name](root=root, download=True, transform=tfm, **split_kwargs)
+    if name == "mnist":
+        ds = datasets.MNIST(root=root, download=True, transform=tfm, **split_kwargs)
+    elif name == "fashionmnist":
+        ds = datasets.FashionMNIST(root=root, download=True, transform=tfm, **split_kwargs)
+    elif name == "kmnist":
+        ds = datasets.KMNIST(root=root, download=True, transform=tfm, **split_kwargs)
+    elif name == "cifar10":
+        ds = datasets.CIFAR10(root=root, download=True, transform=tfm, **split_kwargs)
+    elif name == "cifar100":
+        ds = datasets.CIFAR100(root=root, download=True, transform=tfm, **split_kwargs)
+    elif name == "svhn":
+        ds = datasets.SVHN(root=root, download=True, transform=tfm, **split_kwargs)
+    elif name == "stl10":
+        ds = datasets.STL10(root=root, download=True, transform=tfm, **split_kwargs)
+    else:
+        raise ValueError(f"Unsupported dataset: {dataset_name}. Supported: {supported_datasets()}")
+
     return ds, in_channels

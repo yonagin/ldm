@@ -62,7 +62,7 @@ def main():
         img_size=cfg.img_size,
         id=cfg.id,
     )
-    dl = DataLoader(ds, batch_size=cfg.batch_size, shuffle=True, num_workers=2, pin_memory=True)
+    dl = DataLoader(ds, batch_size=cfg.batch_size, shuffle=True, num_workers=4, pin_memory=True, multiprocessing_context="spawn")
 
     model = build_model(cfg, in_channels=in_channels).to(cfg.device)
     optim = torch.optim.Adam(model.parameters(), lr=cfg.lr)
