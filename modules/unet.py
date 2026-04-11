@@ -443,7 +443,7 @@ class UNetModel(nn.Module):
     def __init__(
         self,
         in_channels,
-        model_channels,
+        model_channels=32,
         out_channels,
         num_res_blocks=2,
         attention_resolutions=2,
