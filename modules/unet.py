@@ -454,7 +454,7 @@ class UNetModel(nn.Module):
         num_classes=None,
         use_checkpoint=False,
         use_fp16=False,
-        num_heads=4,
+        num_heads=8,
         num_head_channels=-1,
         num_heads_upsample=-1,
         use_scale_shift_norm=False,
