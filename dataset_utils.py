@@ -62,7 +62,6 @@ def _as_pil_image(value):
     raise ValueError("Unsupported image type in HF sample.")
 
 
-# ✅ 关键修复：将局部函数提取为顶层可调用类，支持 pickle 序列化
 class HFBatchTransform:
     """
     顶层可调用类，替代局部函数 _transform，
@@ -101,7 +100,6 @@ class HFBatchTransform:
 
 
 def _build_hf_custom_dataset(hf_ds, tfm, in_channels: int):
-    # ✅ 使用顶层类实例替代局部函数
     transform_fn = HFBatchTransform(tfm=tfm, in_channels=in_channels)
     return hf_ds.with_transform(transform_fn)
 
