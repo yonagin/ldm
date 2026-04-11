@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class Encoder(nn.Module):
-    def __init__(self, in_channels=3, z_channels=8, ch=32, ch_mult=(1,2,4), num_res_blocks=2, 
+    def __init__(self, in_channels=3, z_channels=128, ch=32, ch_mult=(1,2,4), num_res_blocks=2, 
                  norm_type='group', dropout=0.0, resamp_with_conv=True):
         super().__init__()
         self.num_resolutions = len(ch_mult)
@@ -68,7 +68,7 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, out_channels=3, z_channels=8, ch=32, ch_mult=(1,2,4), num_res_blocks=2, norm_type="group",
+    def __init__(self, out_channels=3, z_channels=128, ch=32, ch_mult=(1,2,4), num_res_blocks=2, norm_type="group",
                  dropout=0.0, resamp_with_conv=True):
         super().__init__()
         self.num_resolutions = len(ch_mult)

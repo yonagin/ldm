@@ -412,6 +412,7 @@ class RankAE(nn.Module):
         self,
         in_channels,
         latent_dim,
+        rank=True,
         slice_mode="channel",
         softrank_method="sigmoid",
         loss_type: str = "l2",
@@ -426,6 +427,7 @@ class RankAE(nn.Module):
         sinkhorn_iters=20
     ):
         super().__init__()
+        self.rank = rank
         self.use_ema_basis = use_ema_basis
         self.softrank_method = softrank_method
         self.encoder = Encoder(in_channels, latent_dim)
@@ -446,15 +448,16 @@ class RankAE(nn.Module):
         self.decoder = Decoder(in_channels, latent_dim)
         self.loss_type = loss_type
 
-    def encode(self, x, rank=False):
+    def encode(self, x):
         z = self.encoder(x)
-        if rank:
-            z = self.rank_layer.rank(z)
+        #if self.rank:
+        #    z = self.rank_layer.rank(z)
         return z
     
     def decode(self, z):
-        ranked_z = self.rank_layer.rank(z)
-        return self.decoder(ranked_z)
+        if self.rank:
+            z = self.rank_layer.rank(z)
+        return self.decoder(z)
     
     def get_loss(self, pred, target, mean=True):
         """计算 L1 或 L2 损失"""
@@ -470,10 +473,11 @@ class RankAE(nn.Module):
         # Encode
         z = self.encoder(x)
 
-        # Rank (the key operation)
-        ranked_z = self.rank_layer(z)
+        # Rank
+        if self.rank:
+            z = self.rank_layer(z)
         
         # Decode
-        x_recon = self.decoder(ranked_z)
+        x_recon = self.decoder(z)
         
         return self.get_loss(x_recon, x)

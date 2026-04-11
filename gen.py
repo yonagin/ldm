@@ -8,7 +8,7 @@ from models.diffusion import DDPM
 from models.vae import VAE
 from models.rankae import RankAE
 from models.vqvae import VQVAE
-from modules.unet import SimpleUNet
+from modules.unet import UNetModel
 
 
 def load_tokenizer(path: str, device: str):
@@ -65,7 +65,7 @@ def main():
     if latent_size is None:
         latent_size = infer_latent_size_from_dummy(tokenizer, tokenizer_type, device, img_size, in_channels)
 
-    unet = SimpleUNet(in_channels=latent_dim, out_channels=latent_dim)
+    unet = UNetModel(in_channels=latent_dim, out_channels=latent_dim)
     ddpm = DDPM(
         unet=unet,
         timesteps=timesteps,
