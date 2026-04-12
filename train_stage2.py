@@ -9,7 +9,7 @@ from models.diffusion import DDPM
 from models.vae import VAE
 from models.rankae import RankAE
 from models.vqvae import VQVAE
-from modules.unet import UNetModel
+from modules.tiny_unet import TinyUNet
 
 
 def load_tokenizer(path: str, device: str):
@@ -86,7 +86,7 @@ def main():
     dl = DataLoader(ds, batch_size=args.batch_size, shuffle=True, num_workers=2, pin_memory=True)
     latent_size = infer_latent_size(tokenizer, tokenizer_type, dl, device)
 
-    unet = UNetModel(in_channels=latent_dim, out_channels=latent_dim)
+    unet = TinyUNet(in_channels=latent_dim, out_channels=latent_dim)
     ddpm = DDPM(
         unet=unet,
         timesteps=args.timesteps,

@@ -11,7 +11,7 @@ from models.diffusion import DDPM
 from models.vae import VAE
 from models.rankae import RankAE
 from models.vqvae import VQVAE
-from modules.unet import UNetModel
+from modules.tiny_unet import TinyUNet
 
 
 def set_seed(seed: int):
@@ -55,7 +55,7 @@ def load_ldm(ldm_ckpt: str, latent_dim: int, device: str) -> Tuple[DDPM, Dict]:
     if latent_size is None:
         raise ValueError("latent_size not found in ldm checkpoint")
 
-    unet = UNetModel(in_channels=latent_dim, out_channels=latent_dim)
+    unet = TinyUNet(in_channels=latent_dim, out_channels=latent_dim)
     ddpm = DDPM(
         unet=unet,
         timesteps=timesteps,
