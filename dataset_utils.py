@@ -84,9 +84,14 @@ class HFBatchTransform:
 
         xs = [self.tfm(_as_pil_image(img).convert(self.mode)) for img in images]
 
-        labels = batch.get("label", [])
-        label_set = list(filter(None, set(labels)))
-        labels = [0 if y is None else label_set.index(y) for y in labels]
+        labels = batch.get("label")
+        if labels is None:
+            labels = [0] * len(xs)
+        elif not isinstance(labels, list):
+            labels = [int(labels)]
+        else:
+            label_set = list(filter(None, set(labels)))
+            labels = [0 if y is None else label_set.index(y) for y in labels]
 
         return {"pixel_values": xs, "label": labels}
 
