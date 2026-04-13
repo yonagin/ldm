@@ -57,7 +57,7 @@ def main():
     parser.add_argument("--id", type=str, default=None)
 
     # runtime
-    parser.add_argument("--batch-size", type=int, default=64)
+    parser.add_argument("--n", type=int, default=64)
     parser.add_argument("--out", type=str, default="./recon.png")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
 
@@ -82,7 +82,7 @@ def main():
 
     dl = DataLoader(
         ds,
-        batch_size=args.batch_size,
+        n=args.n,
         shuffle=True,
         num_workers=4,
         pin_memory=True,
@@ -102,7 +102,7 @@ def main():
 
     vis = torch.cat([x_vis, rec_vis], dim=0)
 
-    grid = make_grid(vis, nrow=int(args.batch_size ** 0.5))
+    grid = make_grid(vis, nrow=int(args.n ** 0.5))
 
     save_image(grid, args.out)
 
