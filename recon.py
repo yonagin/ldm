@@ -75,14 +75,14 @@ def main():
     ds, _ = build_dataset(
         args.dataset,
         root=args.data_root,
-        train=False,   # 测试集更合理
+        train=False, 
         img_size=args.img_size,
         id=args.id,
     )
 
     dl = DataLoader(
         ds,
-        n=args.n,
+        batch_size=args.n,
         shuffle=True,
         num_workers=4,
         pin_memory=True,
