@@ -10,6 +10,7 @@ from models.vae import VAE
 from models.rankae import RankAE
 from models.vqvae import VQVAE
 from modules.tiny_unet import TinyUNet
+from modules.unet import UNet
 
 
 def load_tokenizer(path: str, device: str):
@@ -63,6 +64,7 @@ def main():
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--lr", type=float, default=2e-4)
     parser.add_argument("--timesteps", type=int, default=200)
+    parser.add_argument("--tiny_unet",action="store_true")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
 
@@ -86,7 +88,10 @@ def main():
     dl = DataLoader(ds, batch_size=args.batch_size, shuffle=True, num_workers=2, pin_memory=True)
     latent_size = infer_latent_size(tokenizer, tokenizer_type, dl, device)
 
-    unet = TinyUNet(in_channels=latent_dim, out_channels=latent_dim)
+    if args.use_tinynet:
+        unet = TinyUNet(in_channels=latent_dim, out_channels=latent_dim)
+    else:
+        unet = UNet(in_channels=latent_dim, out_channels=latent_dim)
     ddpm = DDPM(
         unet=unet,
         timesteps=args.timesteps,
