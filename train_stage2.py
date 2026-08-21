@@ -88,7 +88,7 @@ def main():
     dl = DataLoader(ds, batch_size=args.batch_size, shuffle=True, num_workers=2, pin_memory=True)
     latent_size = infer_latent_size(tokenizer, tokenizer_type, dl, device)
 
-    if args.tiny_net:
+    if args.tiny_unet:
         unet = TinyUNet(in_channels=latent_dim, out_channels=latent_dim)
     else:
         unet = UNet(in_channels=latent_dim, out_channels=latent_dim)
